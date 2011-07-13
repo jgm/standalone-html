@@ -159,26 +159,29 @@ convertTag :: Tag ByteString -> IO (Tag ByteString)
 convertTag t@(TagOpen "img" as) =
        case fromAttrib "src" t of
          src | not (B.null src) -> do
-           let src' = toString src
-           raw <- getItem src'
-           let mime = mimeTypeFor (map toLower $ takeExtension src')
+           (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` ";base64," `B.append` encode raw
            return $ TagOpen "img" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"])
          _   -> return t
 convertTag t@(TagOpen "script" as) =
   case fromAttrib "src" t of
        src | not (B.null src) -> do
-           let src' = toString src
-           let mime = case fromAttrib "type" t of
-                          x | not (B.null x) -> x
-                          _ -> mimeTypeFor (map toLower $ takeExtension src')
-           raw <- getItem src'
+           (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` "," `B.append`
                        (B.pack $ escapeURIString isAscii $ B.unpack raw)
            return $ TagOpen "script" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"]) 
        _    -> return t
 convertTag t@(TagOpen "style" as) = return t -- TODO
 convertTag t = return t
+
+getRaw :: Tag ByteString -> ByteString -> IO (ByteString, ByteString)
+getRaw t src = do
+  let src' = toString src
+  let mime = case fromAttrib "type" t of
+                  x | not (B.null x) -> x
+                  _ -> mimeTypeFor (map toLower $ takeExtension src')
+  raw <- getItem src'
+  return (raw, mime)
 
 main :: IO ()
 main = do
