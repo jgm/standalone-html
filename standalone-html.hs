@@ -171,7 +171,14 @@ convertTag t@(TagOpen "script" as) =
                        (B.pack $ escapeURIString isAscii $ B.unpack raw)
            return $ TagOpen "script" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"]) 
        _    -> return t
-convertTag t@(TagOpen "style" as) = return t -- TODO
+convertTag t@(TagOpen "style" as) =
+  case fromAttrib "href" t of
+       src | not (B.null src) -> do
+           (raw, mime) <- getRaw t src
+           let enc = "data:" `B.append` mime `B.append` "," `B.append`
+                       (B.pack $ escapeURIString isAscii $ B.unpack raw)
+           return $ TagOpen "style" (("href",enc) : [(x,y) | (x,y) <- as, x /= "href"]) 
+       _    -> return t
 convertTag t = return t
 
 getRaw :: Tag ByteString -> ByteString -> IO (ByteString, ByteString)
