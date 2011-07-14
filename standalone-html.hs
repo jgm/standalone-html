@@ -7,9 +7,11 @@ import Data.ByteString.Base64
 import System.IO
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString (ByteString)
-import Data.ByteString.UTF8 (toString)
-import System.FilePath (takeExtension)
-import Data.Char (toLower, isAscii)
+import Data.ByteString.UTF8 (toString, fromString)
+import System.FilePath (takeExtension, dropExtension)
+import Data.Char (toLower, isAscii, isAlphaNum)
+import Codec.Compression.GZip as Gzip
+import qualified Data.ByteString.Lazy as L
 
 getItem :: String -> IO ByteString
 getItem f =
@@ -155,6 +157,8 @@ mimeTypeFor s = case lookup s mimetypes of
                 (".xul", "text/xul")
                 ]
 
+isOk c = isAscii c && isAlphaNum c
+
 convertTag :: Tag ByteString -> IO (Tag ByteString)
 convertTag t@(TagOpen "img" as) =
        case fromAttrib "src" t of
@@ -168,27 +172,31 @@ convertTag t@(TagOpen "script" as) =
        src | not (B.null src) -> do
            (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` "," `B.append`
-                       (B.pack $ escapeURIString isAscii $ B.unpack raw)
+                       (fromString $ escapeURIString isOk $ toString raw)
            return $ TagOpen "script" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"]) 
        _    -> return t
-convertTag t@(TagOpen "style" as) =
+convertTag t@(TagOpen "link" as) =
   case fromAttrib "href" t of
        src | not (B.null src) -> do
            (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` "," `B.append`
-                       (B.pack $ escapeURIString isAscii $ B.unpack raw)
-           return $ TagOpen "style" (("href",enc) : [(x,y) | (x,y) <- as, x /= "href"]) 
+                       (fromString $ escapeURIString isOk $ toString raw)
+           return $ TagOpen "link" (("href",enc) : [(x,y) | (x,y) <- as, x /= "href"]) 
        _    -> return t
 convertTag t = return t
 
 getRaw :: Tag ByteString -> ByteString -> IO (ByteString, ByteString)
 getRaw t src = do
   let src' = toString src
+  let ext = map toLower $ takeExtension src'
+  let (ext',decompress) = if ext == ".gz"
+                             then (takeExtension $ dropExtension src', B.concat . L.toChunks . Gzip.decompress . L.fromChunks . (:[]))
+                             else (ext, id)
   let mime = case fromAttrib "type" t of
                   x | not (B.null x) -> x
-                  _ -> mimeTypeFor (map toLower $ takeExtension src')
+                  _ -> mimeTypeFor ext'
   raw <- getItem src'
-  return (raw, mime)
+  return (decompress raw, mime)
 
 main :: IO ()
 main = do
