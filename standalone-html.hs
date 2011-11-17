@@ -203,5 +203,5 @@ main = do
   inp <- B.getContents
   let tags = parseTags inp
   out <- mapM convertTag tags
-  B.putStr $ renderTagsOptions renderOptions{ optMinimize = (\t -> t == "br" || t == "img") } out
+  B.putStr $ renderTagsOptions renderOptions{ optMinimize = (\t -> t == "br" || t == "img" || t == "meta" || t == "link" ) } out
 
