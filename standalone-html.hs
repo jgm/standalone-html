@@ -10,7 +10,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.UTF8 (toString, fromString)
 import System.FilePath (takeExtension, dropExtension)
 import Data.Char (toLower, isAscii, isAlphaNum)
-import Data.Monoid
 import Codec.Compression.GZip as Gzip
 import qualified Data.ByteString.Lazy as L
 
@@ -199,29 +198,10 @@ getRaw t src = do
   raw <- getItem src'
   return (decompress raw, mime)
 
-renderNormal :: [Tag ByteString] -> ByteString
-renderNormal = renderTagsOptions renderOptions{ optMinimize = (\t -> t == "br" || t == "img" || t == "meta" || t == "link" ) }
-
--- Workaround problem in tagsoup; text inside <script> should not be escaped.
-renderScriptTag :: Tag ByteString -> ByteString
-renderScriptTag (TagText s) =
-  renderTagsOptions renderOptions{ optEscape = id } [TagText s]
-renderScriptTag x = renderNormal [x]
-
-render :: [Tag ByteString] -> ByteString
-render (t:ts) | isTagOpenName "script" t =
-  renderNormal [t] `mappend`
-  mconcat (map renderScriptTag contents) `mappend`
-  render rest
-    where (contents, rest) = break (isTagCloseName "script") ts
-render (t:ts) = renderNormal nonscripts `mappend` render rest
-    where (nonscripts, rest) = break (isTagOpenName "script") (t:ts)
-render [] = mempty
-
 main :: IO ()
 main = do
   inp <- B.getContents
   let tags = parseTags inp
   out <- mapM convertTag tags
-  B.putStr $ render out
+  B.putStr $ renderTagsOptions renderOptions{ optMinimize = (\t -> t == "br" || t == "img" || t == "meta" || t == "link" ) } out
 
