@@ -159,6 +159,15 @@ mimeTypeFor s = case lookup s mimetypes of
 
 isOk c = isAscii c && isAlphaNum c
 
+
+cleanTag :: Tag ByteString -> Tag ByteString
+cleanTag t@(TagOpen tagName as) =
+  TagOpen (toLowerBS tagName) [(toLowerBS x, y) | (x, y) <- as]
+  where
+    toLowerBS = B.map toLower
+cleanTag t = t
+
+
 convertTag :: Tag ByteString -> IO (Tag ByteString)
 convertTag t@(TagOpen "img" as) =
        case fromAttrib "src" t of
@@ -173,7 +182,7 @@ convertTag t@(TagOpen "script" as) =
            (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` "," `B.append`
                        (fromString $ escapeURIString isOk $ toString raw)
-           return $ TagOpen "script" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"]) 
+           return $ TagOpen "script" (("src",enc) : [(x,y) | (x,y) <- as, x /= "src"])
        _    -> return t
 convertTag t@(TagOpen "link" as) =
   case fromAttrib "href" t of
@@ -181,7 +190,7 @@ convertTag t@(TagOpen "link" as) =
            (raw, mime) <- getRaw t src
            let enc = "data:" `B.append` mime `B.append` "," `B.append`
                        (fromString $ escapeURIString isOk $ toString raw)
-           return $ TagOpen "link" (("href",enc) : [(x,y) | (x,y) <- as, x /= "href"]) 
+           return $ TagOpen "link" (("href",enc) : [(x,y) | (x,y) <- as, x /= "href"])
        _    -> return t
 convertTag t = return t
 
@@ -202,6 +211,6 @@ main :: IO ()
 main = do
   inp <- B.getContents
   let tags = parseTags inp
-  out <- mapM convertTag tags
+  out <- mapM (convertTag . cleanTag) tags
   B.putStr $ renderTagsOptions renderOptions{ optMinimize = (\t -> t == "br" || t == "img" || t == "meta" || t == "link" ) } out
 
